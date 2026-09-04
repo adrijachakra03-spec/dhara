@@ -1,0 +1,602 @@
+@import "tailwindcss";
+
+@import "@fontsource/playfair-display/400.css";
+@import "@fontsource/playfair-display/500.css";
+@import "@fontsource/playfair-display/600.css";
+
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+
+
+/* =========================================================
+   DHARA DESIGN TOKENS
+========================================================= */
+
+:root {
+  --paper: #f3efe6;
+  --paper-deep: #e9e3d7;
+
+  --ink: #171714;
+  --ink-soft: #5d5a52;
+
+  --line: #cfc8b9;
+  --line-dark: #b9b1a2;
+
+  --earth: #b65f3c;
+  --earth-dark: #82442e;
+
+  --white: #faf8f3;
+
+  font-family: "IBM Plex Mono", monospace;
+
+  color: var(--ink);
+  background: var(--paper);
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+
+/* =========================================================
+   GLOBAL
+========================================================= */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+
+/* =========================================================
+   TYPOGRAPHY
+========================================================= */
+
+.font-serif {
+  font-family: "Playfair Display", serif;
+}
+
+.font-mono {
+  font-family: "IBM Plex Mono", monospace;
+}
+
+
+/* =========================================================
+   LEAFLET
+========================================================= */
+
+/* =========================================
+   DHARA GIS
+========================================= */
+
+.dhara-map-shell {
+  position: relative;
+  width: 100%;
+  height: 700px;
+  overflow: hidden;
+  background: #e9e3d7;
+  border: 1px solid var(--line);
+}
+
+.dhara-map {
+  width: 100%;
+  height: 100%;
+  background: #e9e3d7;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+/* Base map treatment */
+
+.dhara-map .leaflet-tile {
+  filter:
+    grayscale(100%)
+    sepia(12%)
+    saturate(45%)
+    brightness(1.08)
+    contrast(0.88);
+}
+
+/* Remove default focus outlines */
+
+.dhara-map .leaflet-interactive:focus {
+  outline: none;
+}
+
+/* Zoom controls */
+
+.dhara-map .leaflet-control-zoom {
+  border: 1px solid var(--line-dark) !important;
+  box-shadow: none !important;
+  margin: 16px !important;
+}
+
+.dhara-map .leaflet-control-zoom a {
+  width: 30px !important;
+  height: 30px !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(243, 239, 230, 0.94) !important;
+  color: var(--ink) !important;
+
+  border: 0 !important;
+  border-bottom: 1px solid var(--line) !important;
+
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 12px !important;
+}
+
+.dhara-map .leaflet-control-zoom a:last-child {
+  border-bottom: 0 !important;
+}
+
+/* Attribution */
+
+.dhara-map .leaflet-control-attribution {
+  background: rgba(243, 239, 230, 0.9) !important;
+
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+
+  color: var(--ink-soft) !important;
+
+  font-family: "IBM Plex Mono", monospace !important;
+  font-size: 7px !important;
+}
+
+.dhara-map .leaflet-control-attribution a {
+  color: var(--ink-soft) !important;
+}
+
+/* =========================================
+   MAP UI
+========================================= */
+
+.dhara-map-label,
+.dhara-map-index,
+.dhara-map-stats,
+.dhara-map-legend,
+.dhara-coordinate-strip,
+.dhara-project-panel {
+  position: absolute;
+  z-index: 500;
+}
+
+.dhara-map-label {
+  top: 18px;
+  left: 18px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  padding: 10px 12px;
+
+  background: rgba(243, 239, 230, 0.9);
+  border: 1px solid var(--line);
+}
+
+.dhara-map-label span,
+.dhara-map-index span,
+.dhara-map-stats span,
+.legend-title,
+.legend-row span {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.dhara-map-label span {
+  color: var(--earth);
+}
+
+.dhara-map-label strong {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.dhara-map-index {
+  top: 18px;
+  right: 18px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  text-align: right;
+}
+
+.dhara-map-index span {
+  color: var(--ink-soft);
+}
+
+.dhara-map-index strong {
+  font-size: 10px;
+  font-weight: 500;
+}
+
+/* =========================================
+   STAT BLOCK
+========================================= */
+
+.dhara-map-stats {
+  left: 18px;
+  bottom: 18px;
+
+  display: flex;
+  gap: 1px;
+
+  border: 1px solid var(--line);
+}
+
+.dhara-map-stats div {
+  min-width: 100px;
+  padding: 12px 14px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+
+  background: rgba(243, 239, 230, 0.93);
+
+  border-right: 1px solid var(--line);
+}
+
+.dhara-map-stats div:last-child {
+  border-right: 0;
+}
+
+.dhara-map-stats span {
+  color: var(--ink-soft);
+}
+
+.dhara-map-stats strong {
+  font-family: "Playfair Display", serif;
+  font-size: 25px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* =========================================
+   LEGEND
+========================================= */
+
+.dhara-map-legend {
+  right: 18px;
+  bottom: 18px;
+
+  padding: 12px 14px;
+
+  background: rgba(243, 239, 230, 0.93);
+  border: 1px solid var(--line);
+}
+
+.legend-title {
+  display: block;
+  margin-bottom: 10px;
+  color: var(--ink-soft);
+}
+
+.legend-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin-top: 7px;
+}
+
+.legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: block;
+}
+
+.legend-dot.active {
+  background: var(--earth);
+}
+
+.legend-dot.review {
+  background: #77736a;
+}
+
+.legend-dot.possession {
+  background: #171714;
+}
+
+/* =========================================
+   COORDINATES
+========================================= */
+
+.dhara-coordinate-strip {
+  left: 50%;
+  bottom: 18px;
+
+  transform: translateX(-50%);
+
+  display: flex;
+  gap: 9px;
+
+  padding: 7px 11px;
+
+  background: rgba(243, 239, 230, 0.85);
+  border: 1px solid var(--line);
+
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+}
+
+/* =========================================
+   PROJECT PANEL
+========================================= */
+
+.dhara-project-panel {
+  top: 50%;
+  right: 28px;
+
+  width: min(360px, calc(100% - 40px));
+
+  transform: translateY(-50%);
+
+  padding: 26px;
+
+  background: rgba(243, 239, 230, 0.97);
+  border: 1px solid var(--line-dark);
+
+  box-shadow: 0 24px 70px rgba(23, 23, 20, 0.18);
+}
+
+.dhara-panel-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+
+  width: 28px;
+  height: 28px;
+
+  border: 0;
+  background: transparent;
+
+  color: var(--ink-soft);
+
+  font-size: 22px;
+  line-height: 1;
+}
+
+.dhara-panel-kicker {
+  margin-bottom: 18px;
+
+  color: var(--earth);
+
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.dhara-project-panel h3 {
+  max-width: 290px;
+  margin: 0;
+
+  font-family: "Playfair Display", serif;
+  font-size: 28px;
+  font-weight: 500;
+  line-height: 1.12;
+}
+
+.dhara-panel-divider {
+  width: 100%;
+  height: 1px;
+
+  margin: 25px 0 18px;
+
+  background: var(--line);
+}
+
+.dhara-panel-data {
+  display: flex;
+  flex-direction: column;
+}
+
+.dhara-panel-data div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 9px 0;
+
+  border-bottom: 1px solid rgba(207, 200, 185, 0.65);
+}
+
+.dhara-panel-data div:last-child {
+  border-bottom: 0;
+}
+
+.dhara-panel-data span {
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  color: var(--ink-soft);
+}
+
+.dhara-panel-data strong {
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.dhara-panel-data .status-value {
+  color: var(--earth);
+}
+
+.dhara-open-project {
+  width: 100%;
+
+  margin-top: 22px;
+  padding: 12px 14px;
+
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  background: transparent;
+
+  border: 1px solid var(--ink);
+
+  color: var(--ink);
+
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+
+  transition:
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.dhara-open-project:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* =========================================
+   PROJECT PULSE
+========================================= */
+
+.dhara-pulse {
+  animation: dhara-pulse 2.8s ease-out infinite;
+  transform-origin: center;
+}
+
+@keyframes dhara-pulse {
+  0% {
+    opacity: 0.5;
+    transform: scale(0.7);
+  }
+
+  70% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+/* =========================================
+   MOBILE
+========================================= */
+
+@media (max-width: 768px) {
+  .dhara-map-shell {
+    height: 620px;
+  }
+
+  .dhara-map-label {
+    top: 12px;
+    left: 12px;
+  }
+
+  .dhara-map-index {
+    top: 12px;
+    right: 12px;
+  }
+
+  .dhara-map-stats {
+    left: 12px;
+    bottom: 12px;
+  }
+
+  .dhara-map-stats div {
+    min-width: 82px;
+    padding: 10px;
+  }
+
+  .dhara-map-stats strong {
+    font-size: 21px;
+  }
+
+  .dhara-map-legend {
+    display: none;
+  }
+
+  .dhara-coordinate-strip {
+    display: none;
+  }
+
+  .dhara-project-panel {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+
+    width: auto;
+
+    transform: none;
+
+    padding: 20px;
+  }
+
+  .dhara-project-panel h3 {
+    font-size: 24px;
+  }
+}
+
+@media (max-width: 480px) {
+  .dhara-map-shell {
+    height: 560px;
+  }
+
+  .dhara-map-label {
+    max-width: 190px;
+  }
+
+  .dhara-map-label strong {
+    font-size: 9px;
+  }
+
+  .dhara-map-index {
+    font-size: 8px;
+  }
+
+  .dhara-map-stats {
+    bottom: 12px;
+  }
+
+  .dhara-map-stats div {
+    min-width: 74px;
+  }
+}
