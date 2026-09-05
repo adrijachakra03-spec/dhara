@@ -29,10 +29,9 @@ import CentralProjectReview from "./pages/CentralProjectReview"
 // ================= CITIZEN =================
 import CitizenDashboard from "./pages/CitizenDashboard"
 
-
 function App() {
   return (
-    <BrowserRouter basename="/dhara">
+    <BrowserRouter>
       <Routes>
 
         {/* ================= LANDING ================= */}
