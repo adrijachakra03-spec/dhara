@@ -12,6 +12,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { motion } from "framer-motion"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 const STORAGE_KEY = "dhara-projects"
 
@@ -41,7 +42,7 @@ function StateProjectReview() {
     }
   }, [projectId])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!decision) return
 
     try {
@@ -94,6 +95,21 @@ function StateProjectReview() {
         STORAGE_KEY,
         JSON.stringify(updatedProjects)
       )
+
+      if (decision === "approve") {
+        await addLedgerEvent({
+          projectId,
+          event: "STATE PROJECT APPROVED",
+          authority: "State Authority",
+          details: {
+            projectName: project?.projectName || "—",
+            state: project?.state || "—",
+            district: project?.district || "—",
+            decision: "Approved",
+            remarks: remarks.trim(),
+          },
+        })
+      }
 
       setSubmitted(true)
     } catch (error) {

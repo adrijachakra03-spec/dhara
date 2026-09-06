@@ -29,19 +29,29 @@ import CentralProjectReview from "./pages/CentralProjectReview"
 // ================= CITIZEN =================
 import CitizenDashboard from "./pages/CitizenDashboard"
 
+// ================= SYSTEM =================
+import BlockchainLedger from "./pages/BlockchainLedger"
+import CompensationDashboard from "./pages/CompensationDashboard"
+import ImplementationDashboard from "./pages/ImplementationDashboard"
+import ProjectCompletionDashboard from "./pages/ProjectCompletionDashboard"
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
-        {/* ================= LANDING ================= */}
+        {/* =====================================================
+            LANDING
+        ===================================================== */}
 
         <Route
           path="/"
           element={<Landing />}
         />
 
-        {/* ================= SIGN IN ================= */}
+        {/* =====================================================
+            SIGN IN
+        ===================================================== */}
 
         <Route
           path="/signin"
@@ -134,12 +144,58 @@ function App() {
         />
 
         {/* =====================================================
+            SLCO / SPECIAL LAND ACQUISITION OFFICER
+            Compensation approval + payment
+        ===================================================== */}
+
+        <Route
+          path="/portal/slco"
+          element={<CompensationDashboard />}
+        />
+
+        {/* =====================================================
             CITIZEN PORTAL
         ===================================================== */}
 
         <Route
           path="/portal/citizen"
           element={<CitizenDashboard />}
+        />
+
+        {/* =====================================================
+            BLOCKCHAIN LEDGER
+        ===================================================== */}
+
+        <Route
+          path="/portal/blockchain"
+          element={<BlockchainLedger />}
+        />
+
+        {/* =====================================================
+            LEGACY COMPENSATION ROUTE
+        ===================================================== */}
+
+        <Route
+          path="/portal/compensation"
+          element={<CompensationDashboard />}
+        />
+
+        {/* =====================================================
+            GOVERNMENT IMPLEMENTATION
+        ===================================================== */}
+
+        <Route
+          path="/portal/implementation"
+          element={<ImplementationDashboard />}
+        />
+
+        {/* =====================================================
+            PROJECT COMPLETION
+        ===================================================== */}
+
+        <Route
+          path="/portal/completion"
+          element={<ProjectCompletionDashboard />}
         />
 
       </Routes>

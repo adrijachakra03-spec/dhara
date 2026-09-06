@@ -72,39 +72,59 @@ const workflowStages = [
     number: "06",
     type: "NATIONAL",
     authority: "Central Authority",
-    next: "Compensation",
+    next: "SLCO Compensation Review",
     description:
       "The project reaches national-level oversight where progress, compliance and administrative readiness are reviewed.",
     state: "National oversight",
   },
   {
-    name: "Compensation",
+    name: "Compensation Approval",
     number: "07",
     type: "SETTLEMENT",
-    authority: "Government Administration",
-    next: "Possession / Implementation",
+    authority: "SLCO",
+    next: "Compensation Payment",
     description:
-      "Compensation obligations are tracked against affected parcels. Implementation remains locked until mandatory compensation conditions are cleared.",
-    state: "Compensation clearance",
+      "The Special Land Acquisition Officer reviews the compensation record and approves the compensation due for the affected land.",
+    state: "Compensation approval",
   },
   {
-    name: "Possession / Implementation",
+    name: "Compensation Payment",
     number: "08",
-    type: "EXECUTION",
-    authority: "Government Administration",
-    next: "Completed",
+    type: "PAYMENT",
+    authority: "SLCO",
+    next: "Citizen Acknowledgement",
     description:
-      "Once compensation requirements are cleared, possession and implementation progress can be recorded against the approved project.",
-    state: "Execution stage",
+      "Approved compensation is recorded as paid. Implementation remains locked until the citizen acknowledges the compensation.",
+    state: "Payment recorded",
+  },
+  {
+    name: "Citizen Acknowledgement",
+    number: "09",
+    type: "CITIZEN",
+    authority: "Citizen",
+    next: "Government Implementation",
+    description:
+      "The citizen receives the compensation notification and acknowledges receipt. This acknowledgement makes the project eligible for implementation.",
+    state: "Citizen acknowledgement",
+  },
+  {
+    name: "Implementation",
+    number: "10",
+    type: "EXECUTION",
+    authority: "Government Implementation Authority",
+    next: "Project Completion",
+    description:
+      "Once compensation is approved, paid and acknowledged, the authorized government implementation authority can begin the project.",
+    state: "Implementation in progress",
   },
   {
     name: "Completed",
-    number: "09",
+    number: "11",
     type: "COMPLETE",
-    authority: "System Authority",
+    authority: "Government Implementation Authority",
     next: "Complete",
     description:
-      "The project reaches completion with its land, verification, approval, compensation and implementation history preserved in DHARA.",
+      "The project reaches completion with its land, verification, approvals, compensation, acknowledgement and implementation history preserved in DHARA.",
     state: "Case closed",
   },
 ]
@@ -143,10 +163,10 @@ const portals = [
     label: "GOVERNMENT SYSTEM",
     title: "Authority",
     description:
-      "The connected government layer through which district, field, state and central responsibilities operate.",
+      "The connected government layer through which district, field, state, central and compensation responsibilities operate.",
     question: "Which authority are you?",
     metrics: [
-      ["04", "Government roles"],
+      ["05", "Government roles"],
       ["01", "Connected system"],
       ["24/7", "Administrative visibility"],
     ],
@@ -155,7 +175,8 @@ const portals = [
       "Field verification",
       "State scrutiny",
       "Central oversight",
-      "Compensation & implementation",
+      "SLCO compensation",
+      "Government implementation",
     ],
     icon: Shield,
     color: {
@@ -174,7 +195,7 @@ const portals = [
     question: "What happens to my land?",
     metrics: [
       ["01", "Parcel search"],
-      ["09", "Lifecycle states"],
+      ["11", "Lifecycle states"],
       ["24/7", "Status access"],
     ],
     actions: [
@@ -182,6 +203,7 @@ const portals = [
       "Search Parcel ID",
       "View current status",
       "Track compensation",
+      "Acknowledge compensation",
       "Understand what happens next",
     ],
     icon: Users,
@@ -233,6 +255,16 @@ const authorityRoles = [
       "Monitor national progress, compare states and identify systemic delays.",
     icon: Crosshair,
     color: "#5b547f",
+  },
+  {
+    id: "slco",
+    number: "05",
+    title: "SLCO",
+    label: "SPECIAL LAND ACQUISITION OFFICER",
+    description:
+      "Review and approve compensation, record compensation payment and move eligible projects toward citizen acknowledgement.",
+    icon: Shield,
+    color: "#8b5e3c",
   },
 ]
 
@@ -566,7 +598,7 @@ function Landing() {
                         }`}
                       >
                         {portal.id === "authority"
-                          ? "Four government roles"
+                          ? "Five government roles"
                           : "Portal access"}
                       </p>
 
@@ -758,7 +790,7 @@ function Landing() {
                           <div className="flex items-center gap-4">
 
                             <span className="font-mono text-[9px] font-medium text-[#77736b]">
-                              0{index + 1}
+                              {String(index + 1).padStart(2, "0")}
                             </span>
 
                             <span className="font-mono text-[11px] font-medium text-[#292721] md:text-xs">
@@ -822,13 +854,16 @@ function Landing() {
                 <span>Central</span>
                 <ArrowRight size={11} />
 
-                <span>Compensation</span>
+                <span>SLCO</span>
                 <ArrowRight size={11} />
 
-                <span>Implementation</span>
+                <span>Payment</span>
                 <ArrowRight size={11} />
 
                 <span>Citizen</span>
+                <ArrowRight size={11} />
+
+                <span>Implementation</span>
 
               </div>
 
@@ -1110,7 +1145,7 @@ function Landing() {
 
               <p className="mt-6 max-w-xs font-mono text-[10px] leading-6 text-[#958174]">
                 Every project follows a connected sequence of administrative,
-                geographic and compensation decisions.
+                geographic, compensation and implementation decisions.
               </p>
 
             </div>
@@ -1136,7 +1171,7 @@ function Landing() {
 
           <div className="mt-16 hidden md:block">
 
-            <div className="grid grid-cols-9">
+            <div className="grid grid-cols-11">
 
               {workflowStages.map((stage, index) => {
 

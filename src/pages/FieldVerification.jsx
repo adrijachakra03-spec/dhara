@@ -10,6 +10,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { motion } from "framer-motion"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 function FieldVerification() {
   const navigate = useNavigate()
@@ -32,7 +33,7 @@ function FieldVerification() {
     setProject(foundProject || null)
   }, [projectId])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!decision) return
 
     const projects = JSON.parse(
@@ -71,6 +72,40 @@ function FieldVerification() {
       "dhara-projects",
       JSON.stringify(updatedProjects)
     )
+
+    if (decision === "verified") {
+      await addLedgerEvent({
+        projectId,
+        event: "FIELD VERIFICATION COMPLETED",
+        authority: "Field Officer",
+        details: {
+          projectName:
+            project?.projectName ||
+            project?.name ||
+            "—",
+          state: project?.state || "—",
+          district: project?.district || "—",
+          decision: "Verified",
+          remarks: remarks.trim(),
+        },
+      })
+    } else {
+      await addLedgerEvent({
+        projectId,
+        event: "FIELD VERIFICATION ISSUE",
+        authority: "Field Officer",
+        details: {
+          projectName:
+            project?.projectName ||
+            project?.name ||
+            "—",
+          state: project?.state || "—",
+          district: project?.district || "—",
+          decision: "Issue Found",
+          remarks: remarks.trim(),
+        },
+      })
+    }
 
     setSubmitted(true)
   }

@@ -11,6 +11,7 @@ import {
   XCircle,
 } from "lucide-react"
 import { motion } from "framer-motion"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 function DistrictFieldReview() {
   const navigate = useNavigate()
@@ -33,7 +34,7 @@ function DistrictFieldReview() {
     setProject(foundProject || null)
   }, [projectId])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!decision) return
 
     const projects = JSON.parse(
@@ -85,6 +86,57 @@ function DistrictFieldReview() {
       "dhara-projects",
       JSON.stringify(updatedProjects)
     )
+
+    if (decision === "verified") {
+      await addLedgerEvent({
+        projectId,
+        event: "DISTRICT FIELD REVIEW COMPLETED",
+        authority: "District Authority",
+        details: {
+          projectName: project?.projectName || "—",
+          state: project?.state || "—",
+          district: project?.district || "—",
+          fieldVerification:
+            project?.fieldVerification || "Verified",
+          decision: "Verified",
+          remarks: remarks.trim(),
+        },
+      })
+    }
+
+    if (decision === "correction") {
+      await addLedgerEvent({
+        projectId,
+        event: "DISTRICT FIELD REVIEW CORRECTION",
+        authority: "District Authority",
+        details: {
+          projectName: project?.projectName || "—",
+          state: project?.state || "—",
+          district: project?.district || "—",
+          fieldVerification:
+            project?.fieldVerification || "Verified",
+          decision: "Correction Required",
+          remarks: remarks.trim(),
+        },
+      })
+    }
+
+    if (decision === "reject") {
+      await addLedgerEvent({
+        projectId,
+        event: "DISTRICT FIELD REVIEW REJECTED",
+        authority: "District Authority",
+        details: {
+          projectName: project?.projectName || "—",
+          state: project?.state || "—",
+          district: project?.district || "—",
+          fieldVerification:
+            project?.fieldVerification || "Verified",
+          decision: "Rejected",
+          remarks: remarks.trim(),
+        },
+      })
+    }
 
     setSubmitted(true)
   }

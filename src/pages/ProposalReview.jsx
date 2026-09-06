@@ -11,6 +11,7 @@ import {
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 function ProposalReview() {
   const navigate = useNavigate()
@@ -36,7 +37,7 @@ function ProposalReview() {
   }, [projectId])
 
   // ACCEPT PROPOSAL
-  const handleAccept = () => {
+  const handleAccept = async () => {
     const storedProjects = JSON.parse(
       localStorage.getItem("dhara-projects") || "[]"
     )
@@ -61,6 +62,18 @@ function ProposalReview() {
       "dhara-projects",
       JSON.stringify(updatedProjects)
     )
+
+    await addLedgerEvent({
+      projectId,
+      event: "DISTRICT PROPOSAL ACCEPTED",
+      authority: "District Authority",
+      details: {
+        projectName: project?.projectName || "—",
+        state: project?.state || "—",
+        district: project?.district || "—",
+        decision: "Accepted",
+      },
+    })
 
     navigate("/portal/district")
   }

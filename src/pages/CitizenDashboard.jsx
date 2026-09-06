@@ -1,23 +1,23 @@
-import { useEffect, useMemo, useState } from "react"
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { motion } from "framer-motion"
 import {
   ArrowLeft,
   ArrowRight,
-  Bell,
   CheckCircle2,
+  CircleDollarSign,
   Clock3,
   FileText,
   LockKeyhole,
   MapPin,
-  RefreshCw,
-  Search,
   ShieldCheck,
-  WalletCards,
+  AlertTriangle,
+  Bell,
+  ReceiptText,
 } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 const STORAGE_KEY = "dhara-projects"
-const ACCESS_STORAGE_KEY = "dhara-citizen-access"
 
 const fallbackProjects = [
   {
@@ -27,22 +27,17 @@ const fallbackProjects = [
     state: "West Bengal",
     district: "Kolkata",
     landArea: "248 acres",
-    citizenLandArea: "1.8 acres",
-    parcels: "42",
+    parcels: 42,
     stage: "Compensation",
-    status: "Compensation Processing",
-    authority: "Government Administration",
-    nextAction: "Compensation Clearance",
-    compensationStatus: "Processing",
-    paymentStatus: "Payment Pending",
-    implementationStatus: "Implementation Locked",
-    parcelStatus: "Affected",
-    surveyNumber: "WB-KOL-2048-17",
-    landHolder: "Citizen Record",
+    status: "Compensation Approved — Payment Pending",
+    compensationStatus: "Approved",
+    compensationApprovalStatus: "Approved",
+    compensationPaymentStatus: "Pending",
     compensationAmount: "₹8,40,000",
-    compensationUpdatedAt: "02 Sep 2026",
-    dharaReference: "DH-WB-2026-2048",
-    accessCode: "WB2048",
+    paymentStatus: "Payment Pending",
+    citizenAcknowledgementStatus: "Pending",
+    implementationStatus: "Implementation Locked",
+    surveyNumber: "WB-KOL-2048-17",
   },
   {
     id: "MH-7731",
@@ -51,22 +46,17 @@ const fallbackProjects = [
     state: "Maharashtra",
     district: "Pune",
     landArea: "391 acres",
-    citizenLandArea: "2.4 acres",
-    parcels: "68",
+    parcels: 68,
     stage: "Central Oversight",
     status: "Pending Compensation Processing",
-    authority: "Central Authority",
-    nextAction: "Compensation Processing",
     compensationStatus: "Not Initiated",
-    paymentStatus: "Awaiting Processing",
-    implementationStatus: "Implementation Locked",
-    parcelStatus: "Affected",
-    surveyNumber: "MH-PUN-7731-08",
-    landHolder: "Citizen Record",
+    compensationApprovalStatus: "Pending",
+    compensationPaymentStatus: "Pending",
     compensationAmount: "₹6,75,000",
-    compensationUpdatedAt: "31 Aug 2026",
-    dharaReference: "DH-MH-2026-7731",
-    accessCode: "MH7731",
+    paymentStatus: "Awaiting Processing",
+    citizenAcknowledgementStatus: "Pending",
+    implementationStatus: "Implementation Locked",
+    surveyNumber: "MH-PUN-7731-08",
   },
   {
     id: "OD-0912",
@@ -75,279 +65,451 @@ const fallbackProjects = [
     state: "Odisha",
     district: "Khordha",
     landArea: "164 acres",
-    citizenLandArea: "1.2 acres",
-    parcels: "27",
+    parcels: 27,
     stage: "District Scrutiny",
     status: "Under District Review",
-    authority: "District Authority",
-    nextAction: "Field Verification",
     compensationStatus: "Not Started",
-    paymentStatus: "Not Applicable Yet",
-    implementationStatus: "Not Eligible",
-    parcelStatus: "Under Review",
-    surveyNumber: "OD-KHD-0912-04",
-    landHolder: "Citizen Record",
+    compensationApprovalStatus: "Pending",
+    compensationPaymentStatus: "Pending",
     compensationAmount: "—",
-    compensationUpdatedAt: "—",
-    dharaReference: "DH-OD-2026-0912",
-    accessCode: "OD0912",
+    paymentStatus: "Not Applicable Yet",
+    citizenAcknowledgementStatus: "Pending",
+    implementationStatus: "Not Eligible",
+    surveyNumber: "OD-KHD-0912-04",
   },
 ]
 
-const lifecycle = [
-  "Proposal Submitted",
-  "District Scrutiny",
-  "Field Verification",
-  "District Field Review",
-  "State Scrutiny",
-  "Central Oversight",
-  "Compensation",
-  "Possession / Implementation",
-  "Completed",
-]
+function getProjects() {
+  try {
+    const stored = JSON.parse(
+      localStorage.getItem(STORAGE_KEY) || "[]"
+    )
 
-function getStageIndex(stage) {
-  const normalizedStage = stage?.toLowerCase()
+    if (Array.isArray(stored) && stored.length > 0) {
+      return stored
+    }
 
-  if (normalizedStage === "company revision") {
-    return 1
+    return fallbackProjects
+  } catch {
+    return fallbackProjects
   }
+}
 
-  const index = lifecycle.findIndex(
-    (item) => item.toLowerCase() === normalizedStage
+function getProjectName(project) {
+  return (
+    project?.projectName ||
+    project?.name ||
+    "Unnamed Project"
   )
-
-  return index === -1 ? 0 : index
 }
 
-function getDisplayStage(stage) {
-  if (stage === "Company Revision") {
-    return "District Scrutiny"
+function getCompensationStatus(project) {
+  if (
+    project?.compensationApprovalStatus ===
+    "Approved"
+  ) {
+    return "Approved"
   }
 
-  if (stage === "District Rejected") {
-    return "District Scrutiny"
-  }
-
-  if (stage === "State Rejected") {
-    return "State Scrutiny"
-  }
-
-  return stage || "Proposal Submitted"
+  return (
+    project?.compensationStatus ||
+    project?.compensation?.status ||
+    "Not Available"
+  )
 }
 
-function getStageTone(stage) {
-  const normalized = stage?.toLowerCase() || ""
+function getCompensationAmount(project) {
+  return (
+    project?.compensationAmount ||
+    project?.compensation?.amount ||
+    "Not Available"
+  )
+}
 
-  if (normalized.includes("compensation")) {
-    return "Compensation"
-  }
+function getPaymentStatus(project) {
+  return (
+    project?.compensationPaymentStatus ||
+    project?.paymentStatus ||
+    project?.compensation?.paymentStatus ||
+    "Not Available"
+  )
+}
 
-  if (normalized.includes("completed")) {
-    return "Completed"
+function getImplementationStatus(project) {
+  if (
+    project?.implementationStatus ===
+      "Eligible" ||
+    project?.implementationEligible === true
+  ) {
+    return "Implementation Eligible"
   }
 
   if (
-    normalized.includes("possession") ||
-    normalized.includes("implementation")
+    project?.implementationStatus ===
+    "In Progress"
   ) {
-    return "Implementation"
+    return "Implementation In Progress"
   }
 
-  return "In Progress"
+  if (
+    project?.implementationStatus ===
+    "Completed"
+  ) {
+    return "Completed"
+  }
+
+  return (
+    project?.implementationStatus ||
+    "Implementation Locked"
+  )
 }
 
-function buildAccessRecord(project) {
-  return {
-    ...project,
-    dharaReference:
-      project.dharaReference || `DH-2026-${String(project.id).slice(-6)}`,
-    accessCode:
-      project.accessCode ||
-      `DH${String(project.id)
-        .replace(/[^a-z0-9]/gi, "")
-        .slice(-6)
-        .toUpperCase()}`,
-    citizenLandArea: project.citizenLandArea || project.landArea || "—",
-    compensationAmount: project.compensationAmount || "Pending",
-    compensationStatus:
-      project.compensationStatus ||
-      (getStageIndex(project.stage) >= 6 ? "Processing" : "Not Started"),
-    paymentStatus:
-      project.paymentStatus ||
-      (getStageIndex(project.stage) >= 6
-        ? "Payment Pending"
-        : "Awaiting Processing"),
-    implementationStatus:
-      project.implementationStatus ||
-      (getStageIndex(project.stage) >= 7 ? "Eligible" : "Implementation Locked"),
-    parcelStatus: project.parcelStatus || "Affected",
-    surveyNumber: project.surveyNumber || `Linked-${project.id}`,
-  }
+function isCompensationApproved(project) {
+  return (
+    project?.compensationApprovalStatus ===
+      "Approved" ||
+    project?.compensationApproved === true ||
+    project?.compensationStatus === "Approved"
+  )
+}
+
+function isPaymentCompleted(project) {
+  return (
+    project?.compensationPaymentStatus ===
+      "Paid" ||
+    project?.compensationPaid === true ||
+    project?.paymentStatus ===
+      "Payment Completed" ||
+    project?.paymentStatus === "Paid"
+  )
+}
+
+function isCitizenAcknowledged(project) {
+  return (
+    project?.citizenAcknowledgementStatus ===
+      "Acknowledged" ||
+    project?.citizenAcknowledged === true
+  )
 }
 
 function CitizenDashboard() {
   const navigate = useNavigate()
 
-  const [projects, setProjects] = useState([])
-  const [accessRecords, setAccessRecords] = useState([])
-  const [verifiedRecord, setVerifiedRecord] = useState(null)
+  const [dharaId, setDharaId] = useState("")
+  const [record, setRecord] = useState(null)
+  const [error, setError] = useState("")
+  const [acknowledging, setAcknowledging] =
+    useState(false)
 
-  const [reference, setReference] = useState("")
-  const [surveyNumber, setSurveyNumber] = useState("")
-  const [accessCode, setAccessCode] = useState("")
-  const [verificationError, setVerificationError] = useState("")
-  const [isVerifying, setIsVerifying] = useState(false)
+  // NEW:
+  // Transaction ID entered by the citizen after
+  // compensation payment has been recorded.
+  const [transactionId, setTransactionId] =
+    useState("")
 
-  const [search, setSearch] = useState("")
+  // =====================================================
+  // SEARCH DHARA RECORD
+  // =====================================================
 
-  useEffect(() => {
-    try {
-      const storedProjects = JSON.parse(
-        localStorage.getItem(STORAGE_KEY) || "[]"
+  const handleSearch = () => {
+    const enteredId = dharaId
+      .trim()
+      .toUpperCase()
+
+    setError("")
+    setRecord(null)
+    setTransactionId("")
+
+    if (!enteredId) {
+      setError(
+        "Enter your DHARA ID to continue."
       )
-
-      const sourceProjects =
-        Array.isArray(storedProjects) && storedProjects.length > 0
-          ? storedProjects
-          : fallbackProjects
-
-      setProjects(sourceProjects)
-
-      const storedAccess = JSON.parse(
-        localStorage.getItem(ACCESS_STORAGE_KEY) || "[]"
-      )
-
-      if (Array.isArray(storedAccess) && storedAccess.length > 0) {
-        setAccessRecords(storedAccess)
-      } else {
-        const demoAccessRecords = fallbackProjects.map(buildAccessRecord)
-        setAccessRecords(demoAccessRecords)
-        localStorage.setItem(
-          ACCESS_STORAGE_KEY,
-          JSON.stringify(demoAccessRecords)
-        )
-      }
-    } catch {
-      setProjects(fallbackProjects)
-
-      const demoAccessRecords = fallbackProjects.map(buildAccessRecord)
-      setAccessRecords(demoAccessRecords)
-    }
-  }, [])
-
-  const availableRecords = useMemo(() => {
-    const projectMap = new Map(projects.map((project) => [project.id, project]))
-
-    return accessRecords
-      .map((record) => ({
-        ...buildAccessRecord(projectMap.get(record.id) || record),
-        ...record,
-      }))
-      .filter(Boolean)
-  }, [projects, accessRecords])
-
-  const filteredRecords = useMemo(() => {
-    const query = search.trim().toLowerCase()
-
-    if (!query) return [verifiedRecord].filter(Boolean)
-
-    return [verifiedRecord]
-      .filter(Boolean)
-      .filter((record) => {
-        return [
-          record.id,
-          record.projectName,
-          record.state,
-          record.district,
-          record.surveyNumber,
-          record.stage,
-          record.status,
-        ]
-          .filter(Boolean)
-          .some((value) =>
-            String(value).toLowerCase().includes(query)
-          )
-      })
-  }, [verifiedRecord, search])
-
-  const handleVerify = () => {
-    setVerificationError("")
-
-    const enteredReference = reference.trim().toUpperCase()
-    const enteredSurvey = surveyNumber.trim().toUpperCase()
-    const enteredCode = accessCode.trim().toUpperCase()
-
-    if (!enteredReference || !enteredSurvey || !enteredCode) {
-      setVerificationError("Enter all three details from your government notice.")
       return
     }
 
-    setIsVerifying(true)
+    const projects = getProjects()
 
-    window.setTimeout(() => {
-      const match = availableRecords.find((record) => {
+    const matchedProject = projects.find(
+      (project) => {
+        const projectId = String(
+          project?.id || ""
+        )
+          .trim()
+          .toUpperCase()
+
+        const referenceId = String(
+          project?.dharaReference || ""
+        )
+          .trim()
+          .toUpperCase()
+
         return (
-          String(record.dharaReference).toUpperCase() === enteredReference &&
-          String(record.surveyNumber).toUpperCase() === enteredSurvey &&
-          String(record.accessCode).toUpperCase() === enteredCode
+          projectId === enteredId ||
+          referenceId === enteredId
         )
-      })
+      }
+    )
 
-      if (!match) {
-        setVerificationError(
-          "No matching DHARA record was found. Check the notice details and try again."
-        )
-        setIsVerifying(false)
+    if (!matchedProject) {
+      setError(
+        "No DHARA record was found for this ID. Please check the DHARA ID and try again."
+      )
+      return
+    }
+
+    setRecord(matchedProject)
+
+    // If a transaction ID was already recorded,
+    // restore it when the citizen searches again.
+    setTransactionId(
+      matchedProject?.citizenTransactionId ||
+        ""
+    )
+  }
+
+  // =====================================================
+  // CITIZEN APPROVE IMPLEMENTATION
+  // =====================================================
+
+  const handleAcknowledgeCompensation =
+    async () => {
+      if (!record || acknowledging) {
         return
       }
 
-      setVerifiedRecord(match)
-      setSearch("")
-      setIsVerifying(false)
-    }, 450)
+      // Payment must be completed first.
+      if (!isPaymentCompleted(record)) {
+        setError(
+          "Compensation payment has not yet been recorded. You can approve implementation only after payment is completed."
+        )
+        return
+      }
+
+      // Prevent duplicate acknowledgement.
+      if (isCitizenAcknowledged(record)) {
+        return
+      }
+
+      // Transaction ID is mandatory.
+      const cleanedTransactionId =
+        transactionId.trim()
+
+      if (!cleanedTransactionId) {
+        setError(
+          "Enter the transaction ID received with your compensation payment."
+        )
+        return
+      }
+
+      setAcknowledging(true)
+      setError("")
+
+      try {
+        const storedProjects = (() => {
+          try {
+            const stored = JSON.parse(
+              localStorage.getItem(
+                STORAGE_KEY
+              ) || "[]"
+            )
+
+            return Array.isArray(stored)
+              ? stored
+              : []
+          } catch {
+            return []
+          }
+        })()
+
+        const sourceProjects =
+          storedProjects.length > 0
+            ? storedProjects
+            : fallbackProjects
+
+        const acknowledgedAt =
+          new Date().toISOString()
+
+        const updatedProjects =
+          sourceProjects.map(
+            (project) => {
+              const matchesProject =
+                project.id === record.id ||
+                project.dharaReference ===
+                  record.dharaReference
+
+              if (!matchesProject) {
+                return project
+              }
+
+              return {
+                ...project,
+
+                // =========================================
+                // CITIZEN PAYMENT CONFIRMATION
+                // =========================================
+
+                citizenTransactionId:
+                  cleanedTransactionId,
+
+                citizenTransactionSubmittedAt:
+                  acknowledgedAt,
+
+                // =========================================
+                // CITIZEN IMPLEMENTATION APPROVAL
+                // =========================================
+
+                citizenAcknowledgementStatus:
+                  "Acknowledged",
+
+                citizenAcknowledged: true,
+
+                citizenAcknowledgedAt:
+                  acknowledgedAt,
+
+                citizenImplementationApproval:
+                  "Approved",
+
+                // =========================================
+                // IMPLEMENTATION ELIGIBILITY
+                // =========================================
+
+                implementationStatus:
+                  "Eligible",
+
+                implementationEligible:
+                  true,
+
+                stage:
+                  "Possession / Implementation",
+
+                status:
+                  "Implementation Eligible",
+
+                authority:
+                  "Government Implementation Authority",
+
+                nextAction:
+                  "Implementation Start",
+
+                // =========================================
+                // COMPANY NOTIFICATION
+                // =========================================
+
+                companyNotification: {
+                  type:
+                    "CITIZEN_ACKNOWLEDGED",
+                  message:
+                    "Citizen has confirmed receipt of compensation and approved implementation. The project is now eligible for government implementation.",
+                  createdAt:
+                    acknowledgedAt,
+                },
+
+                companyNotificationStatus:
+                  "Unread",
+              }
+            }
+          )
+
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify(
+            updatedProjects
+          )
+        )
+
+        const updatedProject =
+          updatedProjects.find(
+            (project) =>
+              project.id === record.id
+          )
+
+        setRecord(
+          updatedProject || record
+        )
+
+        await addLedgerEvent({
+          projectId: record.id,
+          event:
+            "CITIZEN IMPLEMENTATION ACKNOWLEDGED",
+          authority: "Citizen",
+          details: {
+            projectName:
+              getProjectName(record),
+
+            state:
+              record?.state || "—",
+
+            district:
+              record?.district || "—",
+
+            compensationAmount:
+              getCompensationAmount(record),
+
+            paymentStatus: "Paid",
+
+            transactionId:
+              cleanedTransactionId,
+
+            acknowledgement:
+              "Approved",
+
+            acknowledgementAt:
+              acknowledgedAt,
+
+            implementationStatus:
+              "Eligible",
+
+            nextStage:
+              "Government Implementation",
+          },
+        })
+      } catch (
+        acknowledgementError
+      ) {
+        console.error(
+          "Citizen implementation approval failed:",
+          acknowledgementError
+        )
+
+        setError(
+          "Your implementation approval could not be recorded. Please try again."
+        )
+      } finally {
+        setAcknowledging(false)
+      }
+    }
+
+  // =====================================================
+  // RESET / SEARCH ANOTHER ID
+  // =====================================================
+
+  const handleReset = () => {
+    setDharaId("")
+    setRecord(null)
+    setError("")
+    setTransactionId("")
   }
 
-  const handleClearAccess = () => {
-    setVerifiedRecord(null)
-    setReference("")
-    setSurveyNumber("")
-    setAccessCode("")
-    setVerificationError("")
-    setSearch("")
-  }
+  // =====================================================
+  // DERIVED STATUS
+  // =====================================================
 
-  const handleUseDemoRecord = (record) => {
-    setReference(record.dharaReference)
-    setSurveyNumber(record.surveyNumber)
-    setAccessCode(record.accessCode)
-    setVerificationError("")
-  }
+  const compensationApproved =
+    record &&
+    isCompensationApproved(record)
 
-  const selectedProject = filteredRecords[0]
+  const paymentCompleted =
+    record &&
+    isPaymentCompleted(record)
 
-  const displayStage = getDisplayStage(selectedProject?.stage)
+  const citizenHasAcknowledged =
+    record &&
+    isCitizenAcknowledged(record)
 
-  const currentStageIndex = Math.max(
-    0,
-    getStageIndex(displayStage)
-  )
-
-  const stageTone = getStageTone(displayStage)
-
-  const compensationStatus =
-    selectedProject?.compensationStatus ||
-    (currentStageIndex >= 6 ? "Processing" : "Not Started")
-
-  const paymentStatus =
-    selectedProject?.paymentStatus ||
-    (currentStageIndex >= 6
-      ? "Payment Pending"
-      : "Awaiting Processing")
-
-  const implementationStatus =
-    selectedProject?.implementationStatus ||
-    (currentStageIndex >= 7 ? "Eligible" : "Implementation Locked")
+  const acknowledgementPending =
+    compensationApproved &&
+    paymentCompleted &&
+    !citizenHasAcknowledged
 
   return (
     <div className="min-h-screen bg-[var(--paper)] text-[var(--ink)]">
@@ -356,912 +518,900 @@ function CitizenDashboard() {
           HEADER
       ===================================================== */}
 
-      <header className="border-b border-[var(--line)] bg-[var(--paper)]">
-        <div className="max-w-7xl mx-auto px-5 md:px-8 py-5">
-          <div className="flex items-center justify-between gap-6">
+      <header className="border-b border-[var(--line)]">
 
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate("/")}
-                className="w-9 h-9 border border-[var(--line)] flex items-center justify-center hover:bg-[var(--ink)] hover:text-[var(--paper)] transition"
-                title="Back to DHARA"
-              >
-                <ArrowLeft size={15} />
-              </button>
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
 
-              <div>
-                <p className="font-serif text-xl md:text-2xl">
-                  DHARA
-                </p>
+          <button
+            onClick={() => navigate("/")}
+            className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.18em] text-[var(--ink-soft)] transition hover:text-[var(--earth)]"
+          >
+            <ArrowLeft size={14} />
+            DHARA
+          </button>
 
-                <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-[var(--ink-soft)] mt-1">
-                  Citizen Portal
-                </p>
-              </div>
-            </div>
+          <div className="text-right">
 
-            <div className="flex items-center gap-3">
-              <button
-                className="relative w-9 h-9 border border-[var(--line)] flex items-center justify-center hover:bg-[var(--paper-deep)] transition"
-                title="Notifications"
-              >
-                <Bell size={15} />
+            <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+              Citizen Portal
+            </p>
 
-                {verifiedRecord && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[var(--earth)]" />
-                )}
-              </button>
-
-              <div className="hidden sm:block text-right">
-                <p className="font-mono text-[9px] uppercase tracking-[0.16em]">
-                  Citizen Access
-                </p>
-
-                <p className="font-mono text-[8px] text-[var(--ink-soft)] mt-1">
-                  {verifiedRecord ? "Record verified" : "Record protected"}
-                </p>
-              </div>
-
-              <div className="w-9 h-9 border border-[var(--line-dark)] bg-[var(--paper-deep)] flex items-center justify-center font-serif">
-                C
-              </div>
-            </div>
+            <p className="mt-1 font-mono text-[8px] text-[var(--ink-soft)]">
+              Secure record access
+            </p>
 
           </div>
+
         </div>
+
       </header>
 
       {/* =====================================================
           MAIN
       ===================================================== */}
 
-      <main className="max-w-7xl mx-auto px-5 md:px-8 py-8 md:py-12">
+      <main className="mx-auto max-w-6xl px-5 py-10 sm:px-8 lg:py-16">
 
         {/* ===================================================
-            INTRO
+            INITIAL SEARCH
         =================================================== */}
 
-        <section className="mb-8 md:mb-10">
-          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6">
+        {!record && (
+          <motion.section
+            initial={{
+              opacity: 0,
+              y: 10,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="mx-auto max-w-3xl"
+          >
 
-            <div>
-              <p className="font-mono text-[9px] uppercase tracking-[0.28em] text-[var(--earth)] mb-3">
-                Secure Citizen Record Access
-              </p>
+            <div className="mb-8">
 
-              <h1 className="font-serif text-4xl md:text-5xl leading-tight">
-                Your land, clearly tracked.
+              <div className="mb-4 flex items-center gap-3">
+
+                <div className="flex h-10 w-10 items-center justify-center border border-[var(--earth)] text-[var(--earth)]">
+                  <LockKeyhole size={17} />
+                </div>
+
+                <span className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+                  Citizen Access
+                </span>
+
+              </div>
+
+              <h1 className="font-serif text-4xl leading-tight sm:text-5xl lg:text-6xl">
+                Your land,
+                <br />
+                <span className="text-[var(--ink-soft)]">
+                  clearly tracked.
+                </span>
               </h1>
 
-              <p className="font-mono text-xs md:text-sm text-[var(--ink-soft)] leading-6 mt-4 max-w-2xl">
-                Access the DHARA record associated with your government
-                notice. Your project, parcel and compensation information
-                remains hidden until the notice details are verified.
+              <p className="mt-5 max-w-2xl font-mono text-xs leading-6 text-[var(--ink-soft)]">
+                Enter your DHARA ID to access
+                the record associated with your
+                government notification.
               </p>
+
             </div>
 
-            <div className="border border-[var(--line)] bg-[var(--white)] px-5 py-4 min-w-[210px]">
-              <p className="font-mono text-[8px] uppercase tracking-[0.2em] text-[var(--ink-soft)]">
-                Record access
-              </p>
+            <div className="border border-[var(--line)] bg-[var(--white)]">
 
-              <p className="font-serif text-3xl mt-1">
-                {verifiedRecord ? "01" : "—"}
-              </p>
+              <div className="border-b border-[var(--line)] p-6 sm:p-8">
 
-              <p className="font-mono text-[8px] text-[var(--ink-soft)] mt-1">
-                Verified citizen record
-              </p>
-            </div>
-
-          </div>
-        </section>
-
-        {/* ===================================================
-            ACCESS / VERIFIED STATE
-        =================================================== */}
-
-        <AnimatePresence mode="wait">
-
-          {!verifiedRecord ? (
-            <motion.section
-              key="access"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
-
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-6">
-
-                {/* ACCESS FORM */}
-
-                <div className="border border-[var(--line)] bg-[var(--white)]">
-
-                  <div className="border-b border-[var(--line)] p-5 md:p-7">
-                    <div className="flex items-start gap-3">
-
-                      <div className="w-10 h-10 border border-[var(--earth)] flex items-center justify-center shrink-0">
-                        <LockKeyhole
-                          size={17}
-                          className="text-[var(--earth)]"
-                        />
-                      </div>
-
-                      <div>
-                        <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
-                          Step 01 / Verification
-                        </p>
-
-                        <h2 className="font-serif text-2xl mt-1">
-                          Access your DHARA record
-                        </h2>
-
-                        <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)] mt-2 max-w-xl">
-                          Enter the exact details printed on your
-                          government land or compensation notice.
-                        </p>
-                      </div>
-
-                    </div>
-                  </div>
-
-                  <div className="p-5 md:p-7 space-y-5">
-
-                    <div>
-                      <label className="font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                        DHARA Reference Number
-                      </label>
-
-                      <input
-                        value={reference}
-                        onChange={(event) => setReference(event.target.value)}
-                        placeholder="e.g. DH-WB-2026-2048"
-                        className="w-full mt-2 border border-[var(--line)] bg-[var(--paper)] px-4 py-3 outline-none font-mono text-xs focus:border-[var(--earth)]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                        Survey / Parcel Number
-                      </label>
-
-                      <input
-                        value={surveyNumber}
-                        onChange={(event) => setSurveyNumber(event.target.value)}
-                        placeholder="e.g. WB-KOL-2048-17"
-                        className="w-full mt-2 border border-[var(--line)] bg-[var(--paper)] px-4 py-3 outline-none font-mono text-xs focus:border-[var(--earth)]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                        Notice Access Code
-                      </label>
-
-                      <input
-                        value={accessCode}
-                        onChange={(event) => setAccessCode(event.target.value)}
-                        placeholder="Enter the code printed on your notice"
-                        className="w-full mt-2 border border-[var(--line)] bg-[var(--paper)] px-4 py-3 outline-none font-mono text-xs focus:border-[var(--earth)]"
-                      />
-                    </div>
-
-                    {verificationError && (
-                      <div className="border border-[var(--earth)] bg-[var(--paper-deep)] p-4">
-                        <p className="font-mono text-[9px] leading-5 text-[var(--earth-dark)]">
-                          {verificationError}
-                        </p>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={handleVerify}
-                      disabled={isVerifying}
-                      className="w-full border border-[var(--earth)] bg-[var(--ink)] text-[var(--paper)] px-5 py-4 font-mono text-[9px] uppercase tracking-[0.16em] flex items-center justify-center gap-3 hover:bg-[var(--earth-dark)] transition disabled:opacity-60"
-                    >
-                      {isVerifying ? (
-                        <>
-                          <RefreshCw size={13} className="animate-spin" />
-                          Verifying record
-                        </>
-                      ) : (
-                        <>
-                          Verify & access record
-                          <ArrowRight size={13} />
-                        </>
-                      )}
-                    </button>
-
-                    <div className="border-t border-[var(--line)] pt-5 flex items-start gap-3">
-                      <ShieldCheck
-                        size={15}
-                        className="text-[var(--earth)] mt-0.5 shrink-0"
-                      />
-
-                      <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
-                        DHARA reveals only a record that matches all
-                        required notice details. Knowing a project ID
-                        alone does not provide citizen access.
-                      </p>
-                    </div>
-
-                  </div>
+                <div className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+                  Record Access
                 </div>
 
-                {/* GOVERNMENT NOTICE */}
-
-                <div className="border border-[var(--line)] bg-[var(--paper-deep)]">
-
-                  <div className="border-b border-[var(--line)] p-5">
-                    <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
-                      Government Notice
-                    </p>
-
-                    <h3 className="font-serif text-xl mt-1">
-                      What you need
-                    </h3>
-                  </div>
-
-                  <div className="p-5">
-
-                    <div className="border border-[var(--line)] bg-[var(--white)] p-5">
-
-                      <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] pb-4">
-                        <div>
-                          <p className="font-mono text-[8px] uppercase tracking-[0.15em]">
-                            Government of India
-                          </p>
-
-                          <p className="font-serif text-lg mt-1">
-                            DHARA
-                          </p>
-                        </div>
-
-                        <FileText
-                          size={18}
-                          className="text-[var(--earth)]"
-                        />
-                      </div>
-
-                      <div className="py-5 space-y-4">
-
-                        <div>
-                          <p className="font-mono text-[7px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                            Notice contains
-                          </p>
-                          <p className="font-mono text-[9px] mt-1">
-                            DHARA reference number
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="font-mono text-[7px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                            Parcel identity
-                          </p>
-                          <p className="font-mono text-[9px] mt-1">
-                            Survey / parcel number
-                          </p>
-                        </div>
-
-                        <div>
-                          <p className="font-mono text-[7px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                            Secure access
-                          </p>
-                          <p className="font-mono text-[9px] mt-1">
-                            Notice access code
-                          </p>
-                        </div>
-
-                      </div>
-
-                      <div className="border-t border-[var(--line)] pt-4">
-                        <p className="font-mono text-[8px] leading-5 text-[var(--ink-soft)]">
-                          Use only the information printed on your
-                          official DHARA notice. Do not share your
-                          access code publicly.
-                        </p>
-                      </div>
-
-                    </div>
-
-                    {/* DEMO HELPER */}
-
-                    <div className="mt-5 border border-dashed border-[var(--line-dark)] p-4">
-
-                      <div className="flex items-start gap-3">
-                        <FileText
-                          size={14}
-                          className="text-[var(--ink-soft)] mt-0.5 shrink-0"
-                        />
-
-                        <div>
-                          <p className="font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                            Prototype demo
-                          </p>
-
-                          <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)] mt-1">
-                            A real deployment would receive these
-                            credentials from the government notice.
-                            For the prototype, use one of the sample
-                            records below.
-                          </p>
-
-                          <div className="mt-3 space-y-2">
-                            {fallbackProjects.map((record) => (
-                              <button
-                                key={record.id}
-                                onClick={() =>
-                                  handleUseDemoRecord(buildAccessRecord(record))
-                                }
-                                className="w-full text-left border border-[var(--line)] bg-[var(--white)] p-3 hover:border-[var(--earth)] transition"
-                              >
-                                <div className="flex items-center justify-between gap-3">
-                                  <span className="font-mono text-[8px] uppercase tracking-[0.12em] text-[var(--earth)]">
-                                    {record.id}
-                                  </span>
-
-                                  <ArrowRight
-                                    size={12}
-                                    className="text-[var(--ink-soft)]"
-                                  />
-                                </div>
-
-                                <p className="font-serif text-sm mt-1">
-                                  {record.projectName}
-                                </p>
-                              </button>
-                            ))}
-                          </div>
-
-                        </div>
-                      </div>
-
-                    </div>
-
-                  </div>
-                </div>
+                <h2 className="mt-2 font-serif text-2xl sm:text-3xl">
+                  Enter DHARA ID
+                </h2>
 
               </div>
 
-            </motion.section>
-          ) : (
-            <motion.section
-              key="record"
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.25 }}
-            >
+              <div className="p-6 sm:p-8">
 
-              {/* VERIFIED BAR */}
+                <label className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--ink-soft)]">
+                  DHARA ID
+                </label>
 
-              <div className="border border-[var(--earth)] bg-[var(--paper-deep)] p-4 md:p-5 mb-6">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-                  <div className="flex items-start gap-3">
-                    <CheckCircle2
-                      size={16}
-                      className="text-[var(--earth)] mt-0.5 shrink-0"
-                    />
-
-                    <div>
-                      <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
-                        Record verified
-                      </p>
-
-                      <p className="font-mono text-[9px] text-[var(--ink-soft)] mt-1">
-                        Access is limited to the verified parcel record.
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={handleClearAccess}
-                    className="border border-[var(--line-dark)] px-4 py-2 font-mono text-[8px] uppercase tracking-[0.14em] hover:bg-[var(--white)] transition"
-                  >
-                    End record access
-                  </button>
-
-                </div>
-              </div>
-
-              {/* SEARCH WITHIN VERIFIED RECORD */}
-
-              <section className="border border-[var(--line)] bg-[var(--white)] p-4 md:p-5 mb-8">
-
-                <div className="flex items-center gap-3">
-                  <Search
-                    size={16}
-                    className="text-[var(--ink-soft)] shrink-0"
-                  />
+                <div className="mt-3 flex flex-col gap-3 sm:flex-row">
 
                   <input
                     type="text"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search within your verified record..."
-                    className="w-full bg-transparent outline-none font-mono text-xs placeholder:text-[var(--ink-soft)]"
+                    value={dharaId}
+                    onChange={(event) => {
+                      setDharaId(
+                        event.target.value
+                      )
+                      setError("")
+                    }}
+                    onKeyDown={(event) => {
+                      if (
+                        event.key === "Enter"
+                      ) {
+                        handleSearch()
+                      }
+                    }}
+                    placeholder="Enter your DHARA ID"
+                    autoComplete="off"
+                    className="min-w-0 flex-1 border border-[var(--line)] bg-[var(--paper)] px-4 py-4 font-mono text-xs uppercase outline-none transition placeholder:normal-case placeholder:text-[var(--ink-soft)]/60 focus:border-[var(--earth)]"
                   />
+
+                  <button
+                    type="button"
+                    onClick={handleSearch}
+                    className="inline-flex items-center justify-center gap-2 bg-[var(--ink)] px-7 py-4 font-mono text-[10px] uppercase tracking-[0.15em] text-[var(--white)] transition hover:bg-[var(--earth)]"
+                  >
+                    Search
+                    <ArrowRight size={14} />
+                  </button>
+
                 </div>
 
-              </section>
+                {error && (
+                  <motion.div
+                    initial={{
+                      opacity: 0,
+                      y: 5,
+                    }}
+                    animate={{
+                      opacity: 1,
+                      y: 0,
+                    }}
+                    className="mt-5 flex items-start gap-3 border border-[var(--earth)] bg-[var(--paper-deep)] p-4"
+                  >
 
-              {/* RECORD */}
+                    <AlertTriangle
+                      size={15}
+                      className="mt-0.5 shrink-0 text-[var(--earth)]"
+                    />
 
-              {selectedProject && (
-                <>
+                    <p className="font-mono text-[9px] leading-5 text-[var(--earth-dark)]">
+                      {error}
+                    </p>
 
-                  <section className="grid grid-cols-1 lg:grid-cols-[300px_1fr] gap-6">
+                  </motion.div>
+                )}
 
-                    {/* RECORD IDENTITY */}
+                <div className="mt-6 flex items-start gap-3 border-t border-[var(--line)] pt-5">
 
-                    <aside>
-                      <div className="border border-[var(--line)] bg-[var(--white)]">
+                  <ShieldCheck
+                    size={14}
+                    className="mt-0.5 shrink-0 text-[var(--earth)]"
+                  />
 
-                        <div className="border-b border-[var(--line)] p-5">
-                          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
-                            Verified Record
+                  <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                    Only the record associated
+                    with a valid DHARA ID will be
+                    displayed.
+                  </p>
+
+                </div>
+
+              </div>
+
+            </div>
+
+          </motion.section>
+        )}
+
+        {/* =====================================================
+            VERIFIED RECORD
+        ===================================================== */}
+
+        {record && (
+          <motion.section
+            initial={{
+              opacity: 0,
+              y: 10,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            className="mx-auto max-w-5xl"
+          >
+
+            {/* RECORD HEADER */}
+
+            <div className="border border-[var(--line)] bg-[var(--white)]">
+
+              <div className="border-b border-[var(--line)] p-6 sm:p-8">
+
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+
+                  <div>
+
+                    <div className="mb-3 flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+
+                      <ShieldCheck size={12} />
+
+                      Verified DHARA Record
+
+                    </div>
+
+                    <h1 className="font-serif text-3xl sm:text-4xl">
+                      {getProjectName(record)}
+                    </h1>
+
+                    <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2">
+
+                      <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+                        DHARA ID:{" "}
+                        <span className="text-[var(--ink)]">
+                          {record.id}
+                        </span>
+                      </span>
+
+                      <span className="flex items-center gap-1.5 font-mono text-[9px] text-[var(--ink-soft)]">
+                        <MapPin size={11} />
+                        {record.district ||
+                          "District"},{" "}
+                        {record.state ||
+                          "State"}
+                      </span>
+
+                    </div>
+
+                  </div>
+
+                  <div className="border border-[var(--earth)] bg-[var(--paper-deep)] px-4 py-3">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                      Current Stage
+                    </p>
+
+                    <p className="mt-1 font-mono text-xs uppercase text-[var(--earth)]">
+                      {record.stage ||
+                        "Processing"}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  LAND RECORD
+              ================================================= */}
+
+              <div className="grid border-b border-[var(--line)] sm:grid-cols-3">
+
+                <div className="border-b border-[var(--line)] p-6 sm:border-r sm:border-b-0">
+
+                  <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                    Survey / Parcel
+                  </p>
+
+                  <p className="mt-2 font-mono text-xs">
+                    {record.surveyNumber ||
+                      "Record linked"}
+                  </p>
+
+                </div>
+
+                <div className="border-b border-[var(--line)] p-6 sm:border-r sm:border-b-0">
+
+                  <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                    Land Area
+                  </p>
+
+                  <p className="mt-2 font-mono text-xs">
+                    {record.landArea ||
+                      record.land ||
+                      "—"}
+                  </p>
+
+                </div>
+
+                <div className="p-6">
+
+                  <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                    Project Type
+                  </p>
+
+                  <p className="mt-2 font-mono text-xs">
+                    {record.projectType ||
+                      "Project"}
+                  </p>
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  COMPENSATION
+              ================================================= */}
+
+              <div className="p-6 sm:p-8">
+
+                <div className="mb-6 flex items-start gap-3">
+
+                  <div className="flex h-10 w-10 items-center justify-center border border-[var(--earth)]">
+
+                    <CircleDollarSign
+                      size={18}
+                      className="text-[var(--earth)]"
+                    />
+
+                  </div>
+
+                  <div>
+
+                    <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+                      Compensation
+                    </p>
+
+                    <h2 className="mt-1 font-serif text-2xl">
+                      Your compensation status
+                    </h2>
+
+                  </div>
+
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+
+                  <div className="border border-[var(--line)] bg-[var(--paper)] p-5">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                      Compensation Amount
+                    </p>
+
+                    <p className="mt-3 font-serif text-2xl">
+                      {getCompensationAmount(
+                        record
+                      )}
+                    </p>
+
+                  </div>
+
+                  <div className="border border-[var(--line)] bg-[var(--paper)] p-5">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                      Compensation Status
+                    </p>
+
+                    <div className="mt-3 flex items-center gap-2">
+
+                      {compensationApproved ? (
+                        <CheckCircle2
+                          size={15}
+                          className="text-[var(--earth)]"
+                        />
+                      ) : (
+                        <Clock3
+                          size={15}
+                          className="text-[var(--earth)]"
+                        />
+                      )}
+
+                      <p className="font-mono text-xs">
+                        {getCompensationStatus(
+                          record
+                        )}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                  <div className="border border-[var(--line)] bg-[var(--paper)] p-5">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                      Payment Status
+                    </p>
+
+                    <div className="mt-3 flex items-center gap-2">
+
+                      {paymentCompleted ? (
+                        <CheckCircle2
+                          size={15}
+                          className="text-[var(--earth)]"
+                        />
+                      ) : (
+                        <Clock3
+                          size={15}
+                          className="text-[var(--earth)]"
+                        />
+                      )}
+
+                      <p className="font-mono text-xs">
+                        {getPaymentStatus(
+                          record
+                        )}
+                      </p>
+
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  GOVERNMENT NOTIFICATION
+              ================================================= */}
+
+              {compensationApproved && (
+                <div className="border-t border-[var(--line)]">
+
+                  <div className="p-6 sm:p-8">
+
+                    <div className="flex items-start gap-4">
+
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--earth)] bg-[var(--paper-deep)]">
+
+                        <Bell
+                          size={17}
+                          className="text-[var(--earth)]"
+                        />
+
+                      </div>
+
+                      <div className="flex-1">
+
+                        <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+                          Government Notification
+                        </p>
+
+                        <h2 className="mt-1 font-serif text-2xl">
+                          Compensation update
+                        </h2>
+
+                        {!paymentCompleted && (
+                          <p className="mt-3 max-w-2xl font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                            Your compensation has
+                            been approved by the
+                            Special Land Acquisition
+                            Officer. Payment is
+                            currently pending. You
+                            will be able to confirm
+                            receipt after payment has
+                            been recorded.
                           </p>
+                        )}
 
-                          <h3 className="font-serif text-xl mt-1">
-                            Your affected parcel
-                          </h3>
-                        </div>
-
-                        <div className="p-5 space-y-4">
-
-                          <div>
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              DHARA Reference
+                        {paymentCompleted &&
+                          !citizenHasAcknowledged && (
+                            <p className="mt-3 max-w-2xl font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                              Your compensation has
+                              been approved and payment
+                              has been recorded. Enter
+                              the transaction ID received
+                              with your payment and
+                              approve implementation.
                             </p>
-
-                            <p className="font-mono text-xs mt-2 break-all">
-                              {selectedProject.dharaReference}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              Survey / Parcel
-                            </p>
-
-                            <p className="font-mono text-xs mt-2 break-all">
-                              {selectedProject.surveyNumber}
-                            </p>
-                          </div>
-
-                          <div>
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              Your affected land
-                            </p>
-
-                            <p className="font-serif text-xl mt-2">
-                              {selectedProject.citizenLandArea}
-                            </p>
-                          </div>
-
-                          <div className="border-t border-[var(--line)] pt-4">
-                            <p className="font-mono text-[8px] leading-5 text-[var(--ink-soft)]">
-                              This record is shown because the
-                              government notice details matched the
-                              DHARA parcel record.
-                            </p>
-                          </div>
-
-                        </div>
-                      </div>
-                    </aside>
-
-                    {/* SELECTED RECORD */}
-
-                    <div>
-
-                      <div className="border border-[var(--line)] bg-[var(--white)]">
-
-                        {/* PROJECT HEADER */}
-
-                        <div className="border-b border-[var(--line)] p-5 md:p-7">
-
-                          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-5">
-
-                            <div>
-
-                              <div className="flex items-center gap-2 mb-3">
-
-                                <span className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
-                                  Project {selectedProject.id}
-                                </span>
-
-                                <span className="w-1 h-1 rounded-full bg-[var(--line-dark)]" />
-
-                                <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                                  {stageTone}
-                                </span>
-
-                              </div>
-
-                              <h2 className="font-serif text-2xl md:text-3xl">
-                                {selectedProject.projectName ||
-                                  selectedProject.name}
-                              </h2>
-
-                              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mt-4">
-
-                                <span className="flex items-center gap-1.5 font-mono text-[9px] text-[var(--ink-soft)]">
-                                  <MapPin size={12} />
-                                  {selectedProject.district},{" "}
-                                  {selectedProject.state}
-                                </span>
-
-                                <span className="font-mono text-[9px] text-[var(--ink-soft)]">
-                                  {selectedProject.projectType ||
-                                    "Project"}
-                                </span>
-
-                              </div>
-
-                            </div>
-
-                            <div className="border border-[var(--earth)] bg-[var(--paper-deep)] px-4 py-3">
-
-                              <p className="font-mono text-[8px] uppercase tracking-[0.18em] text-[var(--ink-soft)]">
-                                Current Stage
-                              </p>
-
-                              <p className="font-mono text-xs uppercase mt-1">
-                                {displayStage}
-                              </p>
-
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                        {/* PARCEL INFORMATION */}
-
-                        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-[var(--line)] border-b border-[var(--line)]">
-
-                          <div className="p-4 md:p-5">
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              Survey / Parcel
-                            </p>
-
-                            <p className="font-mono text-xs mt-2 break-all">
-                              {selectedProject.surveyNumber}
-                            </p>
-                          </div>
-
-                          <div className="p-4 md:p-5">
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              Your Land
-                            </p>
-
-                            <p className="font-mono text-xs mt-2">
-                              {selectedProject.citizenLandArea}
-                            </p>
-                          </div>
-
-                          <div className="p-4 md:p-5">
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              Parcel Status
-                            </p>
-
-                            <p className="font-mono text-xs mt-2">
-                              {selectedProject.parcelStatus}
-                            </p>
-                          </div>
-
-                          <div className="p-4 md:p-5">
-                            <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                              Record Access
-                            </p>
-
-                            <p className="font-mono text-xs mt-2">
-                              Verified
-                            </p>
-                          </div>
-
-                        </div>
-
-                        {/* COMPENSATION */}
-
-                        <div className="p-5 md:p-7">
-
-                          <div className="flex items-start justify-between gap-5 mb-5">
-
-                            <div className="flex items-start gap-3">
-
-                              <div className="w-10 h-10 border border-[var(--earth)] flex items-center justify-center shrink-0">
-                                <WalletCards
-                                  size={17}
-                                  className="text-[var(--earth)]"
-                                />
-                              </div>
-
-                              <div>
-                                <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
-                                  Compensation
-                                </p>
-
-                                <h3 className="font-serif text-xl mt-1">
-                                  Compensation record
-                                </h3>
-                              </div>
-
-                            </div>
-
-                            <span className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)] text-right">
-                              Government managed
-                            </span>
-
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-
-                            <div className="border border-[var(--line)] bg-[var(--paper)] p-4">
-                              <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                                Recorded Amount
-                              </p>
-
-                              <p className="font-serif text-xl mt-2">
-                                {selectedProject.compensationAmount ||
-                                  "Pending"}
-                              </p>
-                            </div>
-
-                            <div className="border border-[var(--line)] bg-[var(--paper)] p-4">
-                              <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                                Compensation Status
-                              </p>
-
-                              <div className="flex items-center gap-2 mt-2">
-
-                                {compensationStatus === "Processing" ? (
-                                  <Clock3
-                                    size={14}
-                                    className="text-[var(--earth)]"
-                                  />
-                                ) : (
-                                  <FileText
-                                    size={14}
-                                    className="text-[var(--ink-soft)]"
-                                  />
-                                )}
-
-                                <p className="font-mono text-xs">
-                                  {compensationStatus}
-                                </p>
-
-                              </div>
-                            </div>
-
-                            <div className="border border-[var(--line)] bg-[var(--paper)] p-4">
-                              <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-                                Payment Status
-                              </p>
-
-                              <p className="font-mono text-xs mt-2">
-                                {paymentStatus}
-                              </p>
-                            </div>
-
-                          </div>
-
-                          <div className="mt-4 border border-[var(--line)] bg-[var(--paper-deep)] p-4">
-
-                            <div className="flex items-start gap-3">
-
-                              <ShieldCheck
-                                size={15}
-                                className="text-[var(--earth)] mt-0.5 shrink-0"
-                              />
-
-                              <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
-                                Compensation information is maintained
-                                by the authorized government authority
-                                against the existing project and parcel
-                                record. No separate citizen compensation
-                                application is required through DHARA.
-                              </p>
-
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                        {/* IMPLEMENTATION GATE */}
-
-                        <div className="border-t border-[var(--line)] p-5 md:p-7">
-
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
-
-                            <div>
-
-                              <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
-                                Implementation Gate
-                              </p>
-
-                              <h3 className="font-serif text-xl mt-1">
-                                Possession / Implementation
-                              </h3>
-
-                              <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)] mt-2 max-w-xl">
-                                Implementation eligibility is linked
-                                to the government compensation process.
-                                Mandatory compensation conditions must be
-                                cleared before implementation can proceed.
-                              </p>
-
-                            </div>
-
-                            <div
-                              className={`border px-4 py-3 shrink-0 ${
-                                implementationStatus === "Eligible"
-                                  ? "border-[var(--earth)] bg-[var(--paper-deep)]"
-                                  : "border-[var(--line-dark)]"
-                              }`}
-                            >
-                              <p className="font-mono text-[8px] uppercase tracking-[0.16em] text-[var(--ink-soft)]">
-                                Status
-                              </p>
-
-                              <p className="font-mono text-xs uppercase mt-1">
-                                {implementationStatus}
-                              </p>
-                            </div>
-
-                          </div>
-
-                        </div>
-
-                      </div>
-
-                      {/* ADMINISTRATIVE TIMELINE */}
-
-                      <div className="mt-6 border border-[var(--line)] bg-[var(--white)]">
-
-                        <div className="border-b border-[var(--line)] p-5">
-
-                          <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
-                            Administrative Timeline
+                          )}
+
+                        {citizenHasAcknowledged && (
+                          <p className="mt-3 max-w-2xl font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                            Your compensation receipt
+                            and implementation approval
+                            have been recorded. The
+                            project is now eligible for
+                            government implementation.
+                            The Government Implementation
+                            Authority will proceed with
+                            the next step.
                           </p>
+                        )}
 
-                          <h3 className="font-serif text-xl mt-1">
-                            Project progress
-                          </h3>
-
-                        </div>
-
-                        <div className="p-5 md:p-7">
-
-                          <div className="relative">
-
-                            <div className="absolute left-[11px] top-3 bottom-3 w-px bg-[var(--line)]" />
-
-                            <div className="space-y-5">
-
-                              {lifecycle.map((stage, index) => {
-
-                                const completed =
-                                  index < currentStageIndex
-
-                                const current =
-                                  index === currentStageIndex
-
-                                return (
-                                  <div
-                                    key={stage}
-                                    className="relative flex items-start gap-4"
-                                  >
-
-                                    <div
-                                      className={`relative z-10 w-[23px] h-[23px] rounded-full border flex items-center justify-center shrink-0 ${
-                                        completed || current
-                                          ? "border-[var(--earth)] bg-[var(--paper)]"
-                                          : "border-[var(--line-dark)] bg-[var(--white)]"
-                                      }`}
-                                    >
-
-                                      {completed ? (
-                                        <CheckCircle2
-                                          size={12}
-                                          className="text-[var(--earth)]"
-                                        />
-                                      ) : (
-                                        <span
-                                          className={`w-1.5 h-1.5 rounded-full ${
-                                            current
-                                              ? "bg-[var(--earth)]"
-                                              : "bg-[var(--line-dark)]"
-                                          }`}
-                                        />
-                                      )}
-
-                                    </div>
-
-                                    <div className="pb-1">
-
-                                      <p
-                                        className={`font-mono text-[10px] uppercase tracking-[0.12em] ${
-                                          current
-                                            ? "text-[var(--earth)]"
-                                            : completed
-                                            ? "text-[var(--ink)]"
-                                            : "text-[var(--ink-soft)]"
-                                        }`}
-                                      >
-                                        {stage}
-                                      </p>
-
-                                      {current && (
-                                        <p className="font-mono text-[8px] text-[var(--ink-soft)] mt-1">
-                                          Current administrative stage
-                                        </p>
-                                      )}
-
-                                    </div>
-
-                                  </div>
-                                )
-                              })}
-
-                            </div>
-
-                          </div>
-
-                        </div>
-                      </div>
-
-                      {/* CITIZEN VISIBILITY */}
-
-                      <div className="mt-6 border border-[var(--earth)] bg-[var(--paper-deep)] p-5 md:p-6">
-
-                        <div className="flex items-start gap-4">
-
-                          <div className="w-9 h-9 border border-[var(--earth)] flex items-center justify-center shrink-0">
-                            <Bell
-                              size={15}
-                              className="text-[var(--earth)]"
-                            />
-                          </div>
-
-                          <div>
-
-                            <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
-                              Citizen visibility
-                            </p>
-
-                            <h3 className="font-serif text-lg mt-1">
-                              Stay informed about your record.
-                            </h3>
-
-                            <p className="font-mono text-[9px] leading-5 text-[var(--ink-soft)] mt-2">
-                              DHARA keeps the project, parcel,
-                              compensation and implementation states
-                              connected so that changes made by authorized
-                              government authorities are reflected in the
-                              citizen view.
-                            </p>
-
-                          </div>
-
-                        </div>
                       </div>
 
                     </div>
 
-                  </section>
+                    {/* =================================================
+                        CITIZEN ACTION
+                    ================================================= */}
 
-                </>
+                    {acknowledgementPending && (
+                      <motion.div
+                        initial={{
+                          opacity: 0,
+                          y: 8,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        className="mt-6 border border-[var(--earth)] bg-[var(--paper-deep)] p-5 sm:p-6"
+                      >
+
+                        <div className="mb-5 flex items-start gap-3">
+
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center border border-[var(--earth)] bg-[var(--paper)]">
+
+                            <ReceiptText
+                              size={16}
+                              className="text-[var(--earth)]"
+                            />
+
+                          </div>
+
+                          <div>
+
+                            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--earth)]">
+                              Citizen Action Required
+                            </p>
+
+                            <p className="mt-2 max-w-2xl font-mono text-[10px] leading-5">
+                              Confirm that you have
+                              received the compensation
+                              payment by entering the
+                              transaction ID provided with
+                              your payment notification.
+                              Approval will unlock the
+                              government implementation
+                              process.
+                            </p>
+
+                          </div>
+
+                        </div>
+
+                        <label className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                          Compensation Transaction ID
+                        </label>
+
+                        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+
+                          <input
+                            type="text"
+                            value={transactionId}
+                            onChange={(event) => {
+                              setTransactionId(
+                                event.target.value
+                              )
+                              setError("")
+                            }}
+                            placeholder="Enter transaction ID"
+                            autoComplete="off"
+                            className="min-w-0 flex-1 border border-[var(--line)] bg-[var(--paper)] px-4 py-4 font-mono text-xs uppercase outline-none transition placeholder:normal-case placeholder:text-[var(--ink-soft)]/60 focus:border-[var(--earth)]"
+                          />
+
+                          <button
+                            type="button"
+                            onClick={
+                              handleAcknowledgeCompensation
+                            }
+                            disabled={
+                              acknowledging ||
+                              !transactionId.trim()
+                            }
+                            className="inline-flex shrink-0 items-center justify-center gap-2 bg-[var(--ink)] px-5 py-4 font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--white)] transition hover:bg-[var(--earth)] disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+
+                            <CheckCircle2 size={13} />
+
+                            {acknowledging
+                              ? "Recording..."
+                              : "Approve Implementation"}
+
+                            <ArrowRight size={13} />
+
+                          </button>
+
+                        </div>
+
+                        <div className="mt-4 flex items-start gap-2 border-t border-[var(--line)] pt-4">
+
+                          <ShieldCheck
+                            size={13}
+                            className="mt-0.5 shrink-0 text-[var(--earth)]"
+                          />
+
+                          <p className="font-mono text-[8px] leading-5 text-[var(--ink-soft)]">
+                            Your transaction ID is used
+                            to record your confirmation
+                            of payment receipt. The citizen
+                            approval does not itself start
+                            government implementation.
+                          </p>
+
+                        </div>
+
+                        {error && (
+                          <motion.div
+                            initial={{
+                              opacity: 0,
+                              y: 5,
+                            }}
+                            animate={{
+                              opacity: 1,
+                              y: 0,
+                            }}
+                            className="mt-4 flex items-start gap-3 border border-[var(--earth)] bg-[var(--paper)] p-4"
+                          >
+
+                            <AlertTriangle
+                              size={14}
+                              className="mt-0.5 shrink-0 text-[var(--earth)]"
+                            />
+
+                            <p className="font-mono text-[9px] leading-5 text-[var(--earth-dark)]">
+                              {error}
+                            </p>
+
+                          </motion.div>
+                        )}
+
+                      </motion.div>
+                    )}
+
+                    {/* =================================================
+                        ACKNOWLEDGED
+                    ================================================= */}
+
+                    {citizenHasAcknowledged && (
+                      <motion.div
+                        initial={{
+                          opacity: 0,
+                          y: 8,
+                        }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                        }}
+                        className="mt-6 border border-[var(--line-dark)] bg-[var(--paper)] p-5"
+                      >
+
+                        <div className="flex items-start gap-3">
+
+                          <CheckCircle2
+                            size={16}
+                            className="mt-0.5 shrink-0 text-[var(--earth)]"
+                          />
+
+                          <div className="flex-1">
+
+                            <p className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--earth)]">
+                              Implementation Approved
+                            </p>
+
+                            <p className="mt-2 font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                              Your receipt of compensation
+                              and approval to proceed with
+                              implementation have been
+                              recorded in the DHARA system.
+                            </p>
+
+                            {record?.citizenTransactionId && (
+                              <div className="mt-4 border-t border-[var(--line)] pt-4">
+
+                                <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
+                                  Transaction ID
+                                </p>
+
+                                <p className="mt-1 font-mono text-[10px] uppercase">
+                                  {record.citizenTransactionId}
+                                </p>
+
+                              </div>
+                            )}
+
+                          </div>
+
+                        </div>
+
+                      </motion.div>
+                    )}
+
+                  </div>
+
+                </div>
               )}
 
-            </motion.section>
-          )}
+              {/* =================================================
+                  IMPLEMENTATION STATUS
+              ================================================= */}
 
-        </AnimatePresence>
+              <div className="border-t border-[var(--line)] p-6 sm:p-8">
+
+                <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+
+                  <div>
+
+                    <p className="font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+                      Implementation
+                    </p>
+
+                    <h2 className="mt-1 font-serif text-xl">
+                      Possession / Implementation
+                    </h2>
+
+                    <p className="mt-2 max-w-xl font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                      Implementation is controlled
+                      by the Government Implementation
+                      Authority. Citizen approval confirms
+                      payment receipt and readiness but does
+                      not itself start implementation.
+                    </p>
+
+                  </div>
+
+                  <div
+                    className={`flex items-center gap-2 border px-4 py-3 ${
+                      citizenHasAcknowledged
+                        ? "border-[var(--earth)] bg-[var(--paper-deep)]"
+                        : "border-[var(--line-dark)]"
+                    }`}
+                  >
+
+                    {citizenHasAcknowledged ? (
+                      <CheckCircle2
+                        size={13}
+                        className="text-[var(--earth)]"
+                      />
+                    ) : (
+                      <LockKeyhole
+                        size={13}
+                        className="text-[var(--earth)]"
+                      />
+                    )}
+
+                    <span className="font-mono text-[9px] uppercase tracking-[0.12em]">
+                      {getImplementationStatus(
+                        record
+                      )}
+                    </span>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  IMPLEMENTATION GATE
+              ================================================= */}
+
+              <div className="border-t border-[var(--line)] bg-[var(--paper-deep)] p-6 sm:p-8">
+
+                <p className="mb-5 font-mono text-[9px] uppercase tracking-[0.2em] text-[var(--earth)]">
+                  Implementation Gate
+                </p>
+
+                <div className="grid gap-px border border-[var(--line)] bg-[var(--line)] sm:grid-cols-3">
+
+                  <div className="bg-[var(--paper)] p-4">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+                      Compensation
+                    </p>
+
+                    <p className="mt-2 font-mono text-[9px] uppercase">
+                      {compensationApproved
+                        ? "Approved"
+                        : "Pending"}
+                    </p>
+
+                  </div>
+
+                  <div className="bg-[var(--paper)] p-4">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+                      Payment
+                    </p>
+
+                    <p className="mt-2 font-mono text-[9px] uppercase">
+                      {paymentCompleted
+                        ? "Paid"
+                        : "Pending"}
+                    </p>
+
+                  </div>
+
+                  <div className="bg-[var(--paper)] p-4">
+
+                    <p className="font-mono text-[8px] uppercase tracking-[0.12em] text-[var(--ink-soft)]">
+                      Citizen approval
+                    </p>
+
+                    <p className="mt-2 font-mono text-[9px] uppercase">
+                      {citizenHasAcknowledged
+                        ? "Approved"
+                        : "Pending"}
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* =================================================
+                  CITIZEN NOTICE
+              ================================================= */}
+
+              <div className="border-t border-[var(--line)] bg-[var(--paper-deep)] p-6 sm:p-8">
+
+                <div className="flex items-start gap-4">
+
+                  <FileText
+                    size={16}
+                    className="mt-0.5 shrink-0 text-[var(--earth)]"
+                  />
+
+                  <div>
+
+                    <p className="font-mono text-[9px] uppercase tracking-[0.18em] text-[var(--earth)]">
+                      Citizen Notice
+                    </p>
+
+                    <p className="mt-2 font-mono text-[9px] leading-5 text-[var(--ink-soft)]">
+                      Compensation approval and
+                      payment are managed by authorized
+                      government authorities. Citizen
+                      confirmation records receipt of
+                      compensation and approval to proceed.
+                      Actual implementation is initiated
+                      by the Government Implementation
+                      Authority.
+                    </p>
+
+                  </div>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            {/* =================================================
+                ACTIONS
+            ================================================= */}
+
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-between">
+
+              <button
+                onClick={handleReset}
+                className="inline-flex items-center justify-center gap-2 border border-[var(--line)] px-5 py-3 font-mono text-[9px] uppercase tracking-[0.15em] transition hover:border-[var(--earth)] hover:text-[var(--earth)]"
+              >
+                <ArrowLeft size={13} />
+                Search another DHARA ID
+              </button>
+
+              <button
+                onClick={() => navigate("/")}
+                className="inline-flex items-center justify-center gap-2 bg-[var(--ink)] px-5 py-3 font-mono text-[9px] uppercase tracking-[0.15em] text-[var(--white)] transition hover:bg-[var(--earth)]"
+              >
+                Exit Citizen Portal
+                <ArrowRight size={13} />
+              </button>
+
+            </div>
+
+            {/* =================================================
+                SECURITY NOTE
+            ================================================= */}
+
+            <div className="mt-6 flex items-start gap-3 border border-[var(--line)] bg-[var(--paper-deep)] p-5">
+
+              <ShieldCheck
+                size={14}
+                className="mt-0.5 shrink-0 text-[var(--earth)]"
+              />
+
+              <p className="font-mono text-[8px] leading-5 text-[var(--ink-soft)]">
+                Only the record associated with
+                the entered DHARA ID is displayed
+                after verification. Administrative
+                decisions remain restricted to
+                authorized government portals.
+              </p>
+
+            </div>
+
+          </motion.section>
+        )}
 
       </main>
 
@@ -1269,16 +1419,16 @@ function CitizenDashboard() {
           FOOTER
       ===================================================== */}
 
-      <footer className="border-t border-[var(--line)] mt-8">
+      <footer className="border-t border-[var(--line)]">
 
-        <div className="max-w-7xl mx-auto px-5 md:px-8 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
 
           <p className="font-mono text-[8px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">
-            DHARA / Citizen Land Intelligence
+            DHARA / Citizen Access
           </p>
 
           <p className="font-mono text-[8px] text-[var(--ink-soft)]">
-            Verified record access • Government managed
+            Read-only • Government managed
           </p>
 
         </div>

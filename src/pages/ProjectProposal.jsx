@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 const projectTypes = [
   "Industrial Development",
@@ -141,7 +142,7 @@ function ProjectProposal() {
     })
   }
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault()
 
     if (!validateStepOne() || !validateStepTwo()) {
@@ -216,6 +217,19 @@ function ProjectProposal() {
       "dhara-projects",
       JSON.stringify(updatedProjects)
     )
+
+    await addLedgerEvent({
+      projectId,
+      event: "PROJECT PROPOSAL SUBMITTED",
+      authority: "Project Authority",
+      details: {
+        projectName: form.projectName.trim(),
+        state: form.state,
+        district: form.district.trim(),
+        landArea: form.landArea,
+        parcels: form.parcels,
+      },
+    })
 
     // Keep latest proposal for compatibility with the tracking page.
     localStorage.setItem(

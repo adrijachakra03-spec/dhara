@@ -12,6 +12,7 @@ import {
   AlertTriangle,
 } from "lucide-react"
 import { motion } from "framer-motion"
+import { addLedgerEvent } from "../blockchain/dharaLedger"
 
 const STORAGE_KEY = "dhara-projects"
 
@@ -36,7 +37,7 @@ function CentralProjectReview() {
     setProject(foundProject || null)
   }, [projectId])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!decision) return
 
     const projects = JSON.parse(
@@ -50,10 +51,10 @@ function CentralProjectReview() {
         return {
           ...item,
 
-          stage: "Acquisition",
-          status: "Approved for Acquisition",
-          authority: "Government Implementation",
-          nextAction: "Land Acquisition / Implementation",
+          stage: "Compensation",
+          status: "Compensation Clearance Pending",
+          authority: "Government Administration",
+          nextAction: "Compensation Review",
 
           centralDecision: "Approved",
           centralDecisionRemarks: remarks.trim(),
@@ -98,6 +99,22 @@ function CentralProjectReview() {
     const updatedProject = updatedProjects.find(
       (item) => item.id === projectId
     )
+
+    if (decision === "approve") {
+      await addLedgerEvent({
+        projectId,
+        event: "CENTRAL OVERSIGHT COMPLETED",
+        authority: "Central Authority",
+        details: {
+          projectName: project?.projectName || project?.name || "—",
+          state: project?.state || "—",
+          district: project?.district || "—",
+          decision: "Approved",
+          remarks: remarks.trim(),
+          nextStage: "Compensation",
+        },
+      })
+    }
 
     setProject(updatedProject)
     setSubmitted(true)
@@ -169,7 +186,7 @@ function CentralProjectReview() {
 
             <p className="font-mono text-xs text-[var(--ink-soft)] leading-6 mb-8">
               {decision === "approve"
-                ? "The project has been cleared for the acquisition and implementation stage."
+                ? "The project has been cleared for compensation review."
                 : decision === "information"
                 ? "The project has been returned to the Project Authority for additional information."
                 : "The project has been rejected at the Central Authority level."}
@@ -248,7 +265,8 @@ function CentralProjectReview() {
 
               <p className="mt-4 max-w-2xl font-mono text-xs leading-6 text-[var(--ink-soft)]">
                 Review the project record and determine whether it can
-                proceed toward acquisition and implementation.
+                proceed toward compensation clearance and implementation
+                eligibility.
               </p>
             </div>
 
@@ -501,7 +519,7 @@ function CentralProjectReview() {
                 onClick={() => setDecision("approve")}
                 icon={<CheckCircle2 size={16} />}
                 title="Approve"
-                description="Proceed to acquisition"
+                description="Proceed to compensation"
               />
 
               <DecisionButton
